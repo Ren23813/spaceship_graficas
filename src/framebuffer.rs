@@ -1,69 +1,79 @@
+// framebuffer.rs
 use raylib::prelude::*;
 
-pub struct Framebuffer{
-    pub width:i32,
-    pub height:i32,
+pub struct Framebuffer {
+    pub width: i32,
+    pub height: i32,
     pub color_buffer: Image,
-    background_color:Color,
-    current_color:Color,
-    pixel_data: Vec<Color>,
+    background_color: Color,
+    current_color: Color,
+    depth_buffer: Vec<f32>,
 }
 
 impl Framebuffer {
-    pub fn new(width: i32, height: i32, background_color:Color) -> Self{
-        let size = (width * height) as usize;
-        let pixel_data = vec![background_color; size];
-        let color_buffer = Image::gen_image_color(width,height,background_color);
-        Framebuffer{
+    pub fn new(width: i32, height: i32) -> Self {
+        let background_color = Color::WHITE;
+        let color_buffer = Image::gen_image_color(width, height, background_color);
+        let depth_buffer = vec![f32::INFINITY; (width * height) as usize];
+        Framebuffer {
             width,
             height,
             color_buffer,
             background_color,
             current_color: Color::WHITE,
-            pixel_data
+            depth_buffer,
         }
     }
 
-    pub fn clear(&mut self){
-        self.pixel_data.fill(self.background_color);
-        self.color_buffer = Image::gen_image_color(self.width,self.height,self.background_color)
+    pub fn clear(&mut self) {
+        self.color_buffer.clear_background(self.background_color);
+        self.depth_buffer.fill(f32::INFINITY);
     }
 
-    pub fn set_pixel(&mut self, x:i32, y:i32){
+    pub fn set_pixel(&mut self, x: i32, y: i32) {
+        if x >= 0 && x < self.width && y >= 0 && y < self.height {
+            self.color_buffer.draw_pixel(x, y, self.current_color);
+        }
+    }
+    
+    pub fn point(&mut self, x: i32, y: i32, depth: f32, color: Vector3) {
         if x >= 0 && x < self.width && y >= 0 && y < self.height {
             let index = (y * self.width + x) as usize;
-            self.pixel_data[index] = self.current_color;
-            Image::draw_pixel(&mut self.color_buffer, x as i32, y as i32, self.current_color);
+
+            if depth < self.depth_buffer[index] {
+                self.depth_buffer[index] = depth;
+                let pixel_color = Color::new(
+                    (color.x.clamp(0.0, 1.0) * 255.0) as u8,
+                    (color.y.clamp(0.0, 1.0) * 255.0) as u8,
+                    (color.z.clamp(0.0, 1.0) * 255.0) as u8,
+                    255,
+                );
+                self.color_buffer.draw_pixel(x, y, pixel_color);
+            }
         }
     }
-
-    pub fn set_background_color(&mut self, color:Color){
-        self.background_color = color;
-        self.clear();
-    }
-
-    pub fn set_current_color(&mut self, color:Color){
-        self.current_color = color;
-    }
-
-    pub fn render_to_file(&self, file_path:&str){
-        Image::export_image(&self.color_buffer, file_path);
-    }
-
-    pub fn swap_buffers(&self, window: &mut RaylibHandle, raylib_thread: &RaylibThread,){
-        if let Ok(texture) = window.load_texture_from_image(raylib_thread, &self.color_buffer){
-            let mut renderer = window.begin_drawing(raylib_thread);
-            renderer.draw_texture(&texture,0,0,Color::WHITE);
-        }
-    }
-
-    pub fn get_pixel_color(&self, x: i32, y: i32) -> Option<Color> {
+    
+    pub fn get_pixel_color(&mut self, x: i32, y: i32) -> Option<Color> {
         if x >= 0 && x < self.width && y >= 0 && y < self.height {
-            let index = (y * self.width + x) as usize;
-            Some(self.pixel_data[index])
+            Some(self.color_buffer.get_color(x, y))
         } else {
             None
         }
     }
 
+    pub fn set_background_color(&mut self, color: Color) {
+        self.background_color = color;
+    }
+
+    pub fn set_current_color(&mut self, color: Color) {
+        self.current_color = color;
+    }
+
+    pub fn swap_buffers(&self, d: &mut RaylibHandle, thread: &RaylibThread) {
+        if let Ok(texture) = d.load_texture_from_image(thread, &self.color_buffer) {
+            let mut d = d.begin_drawing(thread);
+            d.clear_background(self.background_color);
+            d.draw_texture(&texture, 0, 0, Color::WHITE);
+        }
+    } 
 }

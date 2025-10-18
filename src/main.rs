@@ -4,6 +4,12 @@ mod framebuffer;
 mod line;
 mod triangle;
 mod obj;
+mod matrix;
+mod fragment;
+mod vertex;
+mod light;
+mod shaders;
+mod camera;
 
 use obj::Obj;
 use triangle::triangle;
@@ -12,63 +18,82 @@ use raylib::prelude::*;
 use std::thread;
 use std::time::Duration;
 use std::f32::consts::PI;
+use matrix::{create_model_matrix,create_projection_matrix,create_viewport_matrix,multiply_matrix_vector4};
+use light::Light;
+use vertex::Vertex;
+use shaders::{fragment_shaders,vertex_shader};
+use camera::Camera;
+
+use crate::matrix::create_view_matrix;
 
 
-fn transform(vertex: Vector3, translation: Vector2, scale: f32, rotation: Vector3) -> Vector3 {
-
-    
-    let (sin_x, cos_x) = (rotation.x * PI / 180.0).sin_cos();
-    let (sin_y, cos_y) = (rotation.y * PI / 180.0).sin_cos();
-    let (sin_z, cos_z) = (rotation.z * PI / 180.0).sin_cos();
-
-    let mut new_vertex = vertex;
-
-    // Rotate X
-    let rotated_y = new_vertex.y * cos_x - new_vertex.z * sin_x;
-    let rotated_z = new_vertex.y * sin_x + new_vertex.z * cos_x;
-    new_vertex.y = rotated_y;
-    new_vertex.z = rotated_z;
-
-    // Rotate Y
-    let rotated_x = new_vertex.x * cos_y + new_vertex.z * sin_y;
-    let rotated_z = -new_vertex.x * sin_y + new_vertex.z * cos_y;
-    new_vertex.x = rotated_x;
-    new_vertex.z = rotated_z;
-
-    // Rotate Z
-    let rotated_x = new_vertex.x * cos_z - new_vertex.y * sin_z;
-    let rotated_y = new_vertex.x * sin_z + new_vertex.y * cos_z;
-    new_vertex.x = rotated_x;
-    new_vertex.y = rotated_y;
-
-    new_vertex.x = rotated_x;
-    new_vertex.y = rotated_y;
-
-    new_vertex.x *= scale;
-    new_vertex.y *= scale;
-
-
-    new_vertex.x += translation.x;
-    new_vertex.y += translation.y;
-
-    new_vertex
+pub struct Uniforms{
+    pub model_matrix: Matrix,
+    pub view_matrix: Matrix,
+    pub projection_matrix: Matrix,
+    pub viewport_matrix: Matrix,
 }
 
-fn render(framebuffer: &mut Framebuffer, translation:Vector2, scale: f32, rotation: Vector3, vertex_array: &[Vector3]) {
-    // recorrer el array y transformar
 
+// fn transform(vertex: Vector3, translation: Vector3, scale: f32, rotation: Vector3) -> Vector3 {
+//     let model : Matrix = create_model_matrix(translation,scale,rotation);
+//     let view:Matrix=create_view_matrix(Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 1.0, 0.1));
+
+//     let projection:Matrix = create_projection_matrix(PI/3.0, 1900.0/1200.0, 0.1, 100.0);
+//     let viewport : Matrix = create_viewport_matrix(0.0, 0.0, 1900.0, 1200.0);
+//     let vertex4=Vector4::new(vertex.x,vertex.y,vertex.z,1.0);
+
+//     let world_transform = multiply_matrix_vector4(&model, &vertex4);
+//     let view_transform = multiply_matrix_vector4(&model, &world_transform);
+//     let projection_transform = multiply_matrix_vector4(&projection, &view_transform);
+//     let transformed_vertex4 = multiply_matrix_vector4(&viewport, &projection_transform);
+//     // let transformed_vertex4 = view_transform;
+
+//     let transformed_vertex3 = Vector3::new(transformed_vertex4.x/transformed_vertex4.w, transformed_vertex4.y/transformed_vertex4.w, transformed_vertex4.z/transformed_vertex4.w);
+    
+
+    
+//     transformed_vertex3
+// }
+
+fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Vertex], light: &Light) {
+    // Vertex Shader Stage
     let mut transformed_vertices = Vec::with_capacity(vertex_array.len());
     for vertex in vertex_array {
-        let transformed = transform(vertex.clone(), translation, scale, rotation);
+        let transformed = vertex_shader(vertex, uniforms);
         transformed_vertices.push(transformed);
     }
 
-    for i in (0..transformed_vertices.len()).step_by(3){
-        if i + 2 < transformed_vertices.len(){
-            triangle(framebuffer, transformed_vertices[i], transformed_vertices[i+1], transformed_vertices[i+2]);
+    // Primitive Assembly Stage
+    let mut triangles = Vec::new();
+    for i in (0..transformed_vertices.len()).step_by(3) {
+        if i + 2 < transformed_vertices.len() {
+            triangles.push([
+                transformed_vertices[i].clone(),
+                transformed_vertices[i + 1].clone(),
+                transformed_vertices[i + 2].clone(),
+            ]);
         }
     }
-    
+
+    // Rasterization Stage
+    let mut fragments = Vec::new();
+    for tri in &triangles {
+        fragments.extend(triangle(&tri[0], &tri[1], &tri[2], light));
+    }
+
+    // Fragment Processing Stage
+    for fragment in fragments {
+
+        let final_color = fragment_shaders(&fragment, uniforms);
+            
+        framebuffer.point(
+            fragment.position.x as i32,
+            fragment.position.y as i32,
+            fragment.depth,
+            final_color,
+        );
+    }
 }
 
 fn main() {
@@ -81,74 +106,44 @@ fn main() {
         .log_level(TraceLogLevel::LOG_WARNING)
         .build();
 
-    let mut framebuffer = Framebuffer::new(window_width as i32, window_height as i32,  Color::new(81, 25, 107, 255),);
-    let mut translation = Vector2::new(800.0, 600.0);
-    let mut scale = 100.0;
+    let mut framebuffer = Framebuffer::new(window_width, window_height);
+    let mut translation = Vector3::new(0.0, 0.0,0.0);
+    let mut scale = 1.0;
     let mut rotation = Vector3:: new(0.0, 0.0, 0.0);
+    let light = Light::new(Vector3::new(5.0, 5.0, 5.0));
 
     let obj = Obj::load("models/improvisada.obj").expect("Error al leer archivo");
     let vertex_array = obj.get_vertex_array();
+    let mut camera = Camera::new(
+        Vector3::new(0.0, 0.0, 5.0), // eye
+        Vector3::new(0.0, 0.0, 0.0), // target
+        Vector3::new(0.0, 1.0, 0.0), // up
+    );
 
     framebuffer.set_background_color(Color::new(81, 25, 107,255));
 
     while !window.window_should_close() {
+        camera.process_input(&window);
+        
         framebuffer.clear();
         framebuffer.set_current_color(Color::new(200, 200, 255, 255));
-
-        if window.is_key_down(KeyboardKey::KEY_RIGHT) {
-            translation.x += 10.0;
-        }
-
-        if window.is_key_down(KeyboardKey::KEY_LEFT) {
-            translation.x -= 10.0;
-        }
-
-        if window.is_key_down(KeyboardKey::KEY_UP) {
-            translation.y -= 10.0;
-        }
         
-        if window.is_key_down(KeyboardKey::KEY_DOWN) {
-            translation.y += 10.0;
-        }
+        let model_matrix = create_model_matrix(translation, scale, rotation);
+        let view_matrix = camera.get_view_matrix();
+        let projection_matrix = create_projection_matrix(PI / 3.0, window_width as f32 / window_height as f32, 0.1, 100.0);
+        let viewport_matrix = create_viewport_matrix(0.0, 0.0, window_width as f32, window_height as f32);
 
-        
-        if window.is_key_down(KeyboardKey::KEY_S) {
-           scale *= 1.1;
-        }
+        let uniforms = Uniforms {
+            model_matrix,
+            view_matrix,
+            projection_matrix,
+            viewport_matrix,
+        };
 
-        if window.is_key_down(KeyboardKey::KEY_A) {
-           scale *= 0.9;
-        }
+        render(&mut framebuffer, &uniforms, &vertex_array, &light);
 
-        if window.is_key_down(KeyboardKey::KEY_Q) {
-           rotation.x += 10.0;
-        }
-
-        if window.is_key_down(KeyboardKey::KEY_W) {
-           rotation.x -= 10.0;
-        }
-
-        if window.is_key_down(KeyboardKey::KEY_E) {
-           rotation.y += 10.0;
-        }
-
-        if window.is_key_down(KeyboardKey::KEY_R) {
-           rotation.y -= 10.0;
-        }
-
-        if window.is_key_down(KeyboardKey::KEY_T) {
-           rotation.z += 10.0;
-        }
-
-        if window.is_key_down(KeyboardKey::KEY_Y) {
-           rotation.z -= 10.0;
-        }
-
-      
-
-        render(&mut framebuffer, translation, scale, rotation, &vertex_array);
         framebuffer.swap_buffers(&mut window, &raylib_thread);
-
+        
         thread::sleep(Duration::from_millis(16));
     }
 }
