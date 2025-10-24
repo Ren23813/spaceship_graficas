@@ -112,7 +112,7 @@ fn main() {
     let mut rotation = Vector3:: new(0.0, 0.0, 0.0);
     let light = Light::new(Vector3::new(5.0, 5.0, 5.0));
 
-    let obj = Obj::load("models/improvisada.obj").expect("Error al leer archivo");
+    let obj = Obj::load("models/sphere.obj").expect("Error al leer archivo"); //se puede cambiar al spaceship 
     let vertex_array = obj.get_vertex_array();
     let mut camera = Camera::new(
         Vector3::new(0.0, 0.0, 5.0), // eye
@@ -120,7 +120,7 @@ fn main() {
         Vector3::new(0.0, 1.0, 0.0), // up
     );
 
-    framebuffer.set_background_color(Color::new(81, 25, 107,255));
+    framebuffer.set_background_color(Color::new(35,6, 48,1));
 
     while !window.window_should_close() {
         camera.process_input(&window);

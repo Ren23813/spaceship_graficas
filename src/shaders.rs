@@ -3,7 +3,7 @@ use raylib::prelude::*;
 use crate::vertex::Vertex;
 use crate::Uniforms;
 use crate::fragment::Fragment;
-use rand::random;
+// use rand::random;
 
 fn multiply_matrix_vector4(matrix: &Matrix, vector: &Vector4) -> Vector4 {
     Vector4::new(
@@ -72,16 +72,16 @@ fn transform_normal(normal: &Vector3, model_matrix: &Matrix) -> Vector3 {
     transformed_normal
 }
 pub fn fragment_shaders(fragment: &Fragment, uniforms: &Uniforms) -> Vector3 {
-    let base_color = fragment.color;
+    let base_color = fragment.color+0.2;
 
-    let x_pattern = (fragment.position.x / 10.0).atan() * 0.9 + 0.1;
-    // let y_pattern = (fragment.position.y / 10.0).sin() * 0.5 + 0.5;
+    let x_pattern = (fragment.position.x / 20.0) * 0.35 + 0.1;
+    let y_pattern = (fragment.position.y / 250.0).cos() * 0.9 + 0.1;
 
     let pattern_color = Vector3::new(
-        x_pattern, 2.0, 8.0
-        // y_pattern,
-        // (x_pattern + y_pattern) / 2.0,
+        x_pattern,
+        y_pattern,
+        (x_pattern + y_pattern).cos() - 0.9,
     );
 
-    base_color * 0.5 + pattern_color * 0.5
+    base_color * 0.4 + pattern_color * 0.6
 }
