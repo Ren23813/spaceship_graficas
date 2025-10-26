@@ -16,8 +16,94 @@ fn multiply_matrix_vector4(matrix: &Matrix, vector: &Vector4) -> Vector4 {
 
 pub fn vertex_shader(vertex: &Vertex, uniforms: &Uniforms) -> Vertex {
   let position_vec4 = Vector4::new(
-    vertex.position.x,
-    vertex.position.y,
+    vertex.position.x, //tan
+    vertex.position.y, //cos
+    vertex.position.z,
+    1.0
+  );
+
+  let world_position = multiply_matrix_vector4(&uniforms.model_matrix, &position_vec4);
+
+  let view_position = multiply_matrix_vector4(&uniforms.view_matrix, &world_position);
+
+  let clip_position = multiply_matrix_vector4(&uniforms.projection_matrix, &view_position);
+
+  let ndc = if clip_position.w != 0.0 {
+      Vector3::new(
+          clip_position.x / clip_position.w,
+          clip_position.y / clip_position.w,
+          clip_position.z / clip_position.w,
+      )
+  } else {
+      Vector3::new(clip_position.x, clip_position.y, clip_position.z)
+  };
+
+  let ndc_vec4 = Vector4::new(ndc.x, ndc.y, ndc.z, 1.0);
+  let screen_position = multiply_matrix_vector4(&uniforms.viewport_matrix, &ndc_vec4);
+
+  let transformed_position = Vector3::new(
+      screen_position.x,
+      screen_position.y,
+      screen_position.z,
+  );
+
+  Vertex {
+    position: vertex.position,
+    normal: vertex.normal,
+    tex_coords: vertex.tex_coords,
+    color: vertex.color,
+    transformed_position,
+    transformed_normal: transform_normal(&vertex.normal, &uniforms.model_matrix),
+  }
+}
+
+pub fn vertex_shader2(vertex: &Vertex, uniforms: &Uniforms) -> Vertex {
+  let position_vec4 = Vector4::new(
+    vertex.position.x, //tan
+    vertex.position.y, //cos
+    vertex.position.z,
+    1.0
+  );
+
+  let world_position = multiply_matrix_vector4(&uniforms.model_matrix, &position_vec4);
+
+  let view_position = multiply_matrix_vector4(&uniforms.view_matrix, &world_position);
+
+  let clip_position = multiply_matrix_vector4(&uniforms.projection_matrix, &view_position);
+
+  let ndc = if clip_position.w != 0.0 {
+      Vector3::new(
+          clip_position.x / clip_position.w,
+          clip_position.y / clip_position.w,
+          clip_position.z / clip_position.w,
+      )
+  } else {
+      Vector3::new(clip_position.x, clip_position.y, clip_position.z)
+  };
+
+  let ndc_vec4 = Vector4::new(ndc.x, ndc.y, ndc.z, 1.0);
+  let screen_position = multiply_matrix_vector4(&uniforms.viewport_matrix, &ndc_vec4);
+
+  let transformed_position = Vector3::new(
+      screen_position.x,
+      screen_position.y,
+      screen_position.z,
+  );
+
+  Vertex {
+    position: vertex.position,
+    normal: vertex.normal,
+    tex_coords: vertex.tex_coords,
+    color: vertex.color,
+    transformed_position,
+    transformed_normal: transform_normal(&vertex.normal, &uniforms.model_matrix),
+  }
+}
+
+pub fn vertex_shader3(vertex: &Vertex, uniforms: &Uniforms) -> Vertex {
+  let position_vec4 = Vector4::new(
+    vertex.position.x.tan(), 
+    vertex.position.y.cos(), 
     vertex.position.z,
     1.0
   );
@@ -71,7 +157,7 @@ fn transform_normal(normal: &Vector3, model_matrix: &Matrix) -> Vector3 {
     transformed_normal.normalize();
     transformed_normal
 }
-pub fn fragment_shaders(fragment: &Fragment, uniforms: &Uniforms) -> Vector3 {
+pub fn fragment_shader1(fragment: &Fragment, uniforms: &Uniforms) -> Vector3 {
     let base_color = fragment.color+0.2;
 
     let x_pattern = (fragment.position.x / 20.0) * 0.35 + 0.1;
@@ -84,4 +170,33 @@ pub fn fragment_shaders(fragment: &Fragment, uniforms: &Uniforms) -> Vector3 {
     );
 
     base_color * 0.4 + pattern_color * 0.6
+}
+
+pub fn fragment_shader2(fragment: &Fragment, uniforms: &Uniforms) -> Vector3 {
+    let base_color = fragment.color-0.6;
+
+    let x_pattern = (fragment.position.x / 20.0).sin() * 0.5 + 0.5;
+    let y_pattern = (fragment.position.y / 10.0).cos() * 0.1 + 0.3;
+
+    let pattern_color = Vector3::new(
+        x_pattern,
+        y_pattern,
+        (x_pattern + y_pattern).atan(),
+    );
+
+    base_color * 0.5 + pattern_color * 0.5
+}
+
+pub fn fragment_shader3(fragment: &Fragment, uniforms: &Uniforms) -> Vector3 {
+    let base_color = Vector3::new(0.0, 0.8, 0.6); // verde turquesa base
+
+    let ripple = ((fragment.position.x * 0.05).sin() + (fragment.position.y * 0.05).cos()) * 0.5 + 0.5;
+
+    let wave_color = Vector3::new(
+        base_color.x * ripple,
+        base_color.y * ripple,
+        base_color.z + 0.2 * ripple,
+    );
+
+    wave_color
 }

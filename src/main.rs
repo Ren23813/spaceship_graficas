@@ -21,10 +21,10 @@ use std::f32::consts::PI;
 use matrix::{create_model_matrix,create_projection_matrix,create_viewport_matrix,multiply_matrix_vector4};
 use light::Light;
 use vertex::Vertex;
-use shaders::{fragment_shaders,vertex_shader};
+use shaders::{fragment_shader1,fragment_shader2,fragment_shader3,vertex_shader,vertex_shader2,vertex_shader3};
 use camera::Camera;
 
-use crate::matrix::create_view_matrix;
+use crate::{fragment::Fragment, matrix::create_view_matrix};
 
 
 pub struct Uniforms{
@@ -35,28 +35,13 @@ pub struct Uniforms{
 }
 
 
-// fn transform(vertex: Vector3, translation: Vector3, scale: f32, rotation: Vector3) -> Vector3 {
-//     let model : Matrix = create_model_matrix(translation,scale,rotation);
-//     let view:Matrix=create_view_matrix(Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 1.0, 0.1));
-
-//     let projection:Matrix = create_projection_matrix(PI/3.0, 1900.0/1200.0, 0.1, 100.0);
-//     let viewport : Matrix = create_viewport_matrix(0.0, 0.0, 1900.0, 1200.0);
-//     let vertex4=Vector4::new(vertex.x,vertex.y,vertex.z,1.0);
-
-//     let world_transform = multiply_matrix_vector4(&model, &vertex4);
-//     let view_transform = multiply_matrix_vector4(&model, &world_transform);
-//     let projection_transform = multiply_matrix_vector4(&projection, &view_transform);
-//     let transformed_vertex4 = multiply_matrix_vector4(&viewport, &projection_transform);
-//     // let transformed_vertex4 = view_transform;
-
-//     let transformed_vertex3 = Vector3::new(transformed_vertex4.x/transformed_vertex4.w, transformed_vertex4.y/transformed_vertex4.w, transformed_vertex4.z/transformed_vertex4.w);
-    
-
-    
-//     transformed_vertex3
-// }
-
-fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Vertex], light: &Light) {
+fn render(framebuffer: &mut Framebuffer, 
+    uniforms: &Uniforms, 
+    vertex_array: &[Vertex], 
+    light: &Light,
+    vertex_shader: &dyn Fn(&Vertex, &Uniforms) -> Vertex,  
+    fragment_shader: fn(&Fragment, &Uniforms) -> Vector3,
+    ) {
     // Vertex Shader Stage
     let mut transformed_vertices = Vec::with_capacity(vertex_array.len());
     for vertex in vertex_array {
@@ -84,9 +69,7 @@ fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Ve
 
     // Fragment Processing Stage
     for fragment in fragments {
-
-        let final_color = fragment_shaders(&fragment, uniforms);
-            
+    let final_color = fragment_shader(&fragment, uniforms);            
         framebuffer.point(
             fragment.position.x as i32,
             fragment.position.y as i32,
@@ -122,17 +105,54 @@ fn main() {
 
     framebuffer.set_background_color(Color::new(35,6, 48,1));
 
+    // estado del modo activo: 1, 2, o 3 (switch)
+    let mut active_mode: u8 = 1; // default
+
+    let model_matrix = create_model_matrix(translation, scale, rotation);
+    let model_matrix_bottom = create_model_matrix(
+        Vector3::new(0.0, -2.5, 0.0),  // move down
+        scale,
+        Vector3::new(PI, 0.0, 0.0),  // flip on Y axis
+    );
+
     while !window.window_should_close() {
         camera.process_input(&window);
-        
+
+        // --- DETECTAR PULSACIONES (switch behavior) ---
+        // Usamos is_key_pressed para que sea una pulsación única (toggle-like).
+        if window.is_key_pressed(KeyboardKey::KEY_ONE) {
+            active_mode = 1;
+        } else if window.is_key_pressed(KeyboardKey::KEY_TWO) {
+            active_mode = 2;
+        } else if window.is_key_pressed(KeyboardKey::KEY_THREE) {
+            active_mode = 3;
+        }
+
         framebuffer.clear();
         framebuffer.set_current_color(Color::new(200, 200, 255, 255));
-        
-        let model_matrix = create_model_matrix(translation, scale, rotation);
+
         let view_matrix = camera.get_view_matrix();
         let projection_matrix = create_projection_matrix(PI / 3.0, window_width as f32 / window_height as f32, 0.1, 100.0);
         let viewport_matrix = create_viewport_matrix(0.0, 0.0, window_width as f32, window_height as f32);
 
+        // --- ELECCION DE SHADERS PARA EL OBJETO SUPERIOR SEGUN active_mode ---
+        let (vertex_top, fragment_top): (
+            Box<dyn Fn(&Vertex, &Uniforms) -> Vertex>,
+            fn(&Fragment, &Uniforms) -> Vector3
+        ) = match active_mode {
+            1 => (Box::new(vertex_shader), fragment_shader1),
+            2 => (Box::new(vertex_shader2), fragment_shader2),
+            3 => (Box::new(vertex_shader3), fragment_shader3),
+            _ => (Box::new(vertex_shader), fragment_shader1),
+        };
+
+        // Para la copia inferior (solo renderizamos si active_mode == 3)
+        let (vertex_bottom, fragment_bottom): (
+            Box<dyn Fn(&Vertex, &Uniforms) -> Vertex>,
+            fn(&Fragment, &Uniforms) -> Vector3
+        ) = (Box::new(vertex_shader), fragment_shader1); // valores por defecto si se llegara a usar
+
+        // uniforms para la parte superior
         let uniforms = Uniforms {
             model_matrix,
             view_matrix,
@@ -140,10 +160,26 @@ fn main() {
             viewport_matrix,
         };
 
-        render(&mut framebuffer, &uniforms, &vertex_array, &light);
+        // render superior (siempre)
+        render(&mut framebuffer, &uniforms, &vertex_array, &light, &vertex_top.as_ref(), fragment_top);
+
+        // Si el modo es 3, dibujamos la copia inferior (duplicado). Si quieres que la copia tenga
+        // un fragment shader distinto, cámbialo aquí (por ejemplo fragment_shader2).
+        if active_mode == 3 {
+            let uniforms_bottom = Uniforms {
+                model_matrix: model_matrix_bottom,
+                view_matrix,
+                projection_matrix,
+                viewport_matrix,
+            };
+            // aquí usamos vertex_shader3 también para la copia inferior (si quieres que la copia sea
+            // el resultado de vertex_shader3). Si en su lugar quieres que la copia sea la geometría
+            // normal pero con otro fragment, cambia vertex_bottom por Box::new(vertex_shader).
+            render(&mut framebuffer, &uniforms_bottom, &vertex_array, &light, vertex_top.as_ref(), fragment_top);
+        }
 
         framebuffer.swap_buffers(&mut window, &raylib_thread);
-        
+
         thread::sleep(Duration::from_millis(16));
     }
 }
