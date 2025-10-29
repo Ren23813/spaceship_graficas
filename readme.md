@@ -9,3 +9,4 @@ Wireframe de nave hecha en blender. Tenía otra más bonita pero tenía 18millon
 ### Muestra que funciona :D
 ![alt text](image.png)
 
+# Para alternar los distintos planetas, pulsar 1,2,3 en el teclado :). 
