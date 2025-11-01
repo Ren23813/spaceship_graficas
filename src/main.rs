@@ -21,7 +21,7 @@ use std::f32::consts::PI;
 use matrix::{create_model_matrix,create_projection_matrix,create_viewport_matrix,multiply_matrix_vector4};
 use light::Light;
 use vertex::Vertex;
-use shaders::{fragment_shader1,fragment_shader2,fragment_shader3,vertex_shader,vertex_shader2,vertex_shader3};
+use shaders::{fragment_shader1,fragment_shader2,fragment_shader3,vertex_shader,vertex_shader2,vertex_shader3,ultra_mega_vertex_shader,ultra_mega_fragment_shader};
 use camera::Camera;
 
 use crate::{fragment::Fragment, matrix::create_view_matrix};
@@ -126,6 +126,8 @@ fn main() {
             active_mode = 2;
         } else if window.is_key_pressed(KeyboardKey::KEY_THREE) {
             active_mode = 3;
+        } else if window.is_key_pressed(KeyboardKey::KEY_FOUR) {
+            active_mode = 4;
         }
 
         framebuffer.clear();
@@ -143,6 +145,7 @@ fn main() {
             1 => (Box::new(vertex_shader), fragment_shader1),
             2 => (Box::new(vertex_shader2), fragment_shader2),
             3 => (Box::new(vertex_shader3), fragment_shader3),
+            4 => (Box::new(ultra_mega_vertex_shader), ultra_mega_fragment_shader),
             _ => (Box::new(vertex_shader), fragment_shader1),
         };
 

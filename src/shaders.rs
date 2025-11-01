@@ -200,3 +200,50 @@ pub fn fragment_shader3(fragment: &Fragment, uniforms: &Uniforms) -> Vector3 {
 
     wave_color
 }
+
+pub fn ultra_mega_vertex_shader(vertex: &Vertex, uniforms: &Uniforms) ->Vertex{
+  let position_vec4 = Vector4::new(
+    vertex_shader(vertex, uniforms).position.x * vertex_shader2(vertex, uniforms).position.x * vertex_shader3(vertex, uniforms).position.x , 
+    vertex_shader(vertex, uniforms).position.y * vertex_shader2(vertex, uniforms).position.y * vertex_shader3(vertex, uniforms).position.y , 
+    vertex_shader(vertex, uniforms).position.z * vertex_shader2(vertex, uniforms).position.z * vertex_shader3(vertex, uniforms).position.z ,
+    1.0
+  );
+
+  let world_position = multiply_matrix_vector4(&uniforms.model_matrix, &position_vec4);
+
+  let view_position = multiply_matrix_vector4(&uniforms.view_matrix, &world_position);
+
+  let clip_position = multiply_matrix_vector4(&uniforms.projection_matrix, &view_position);
+
+  let ndc = if clip_position.w != 0.0 {
+      Vector3::new(
+          clip_position.x / clip_position.w,
+          clip_position.y / clip_position.w,
+          clip_position.z / clip_position.w,
+      )
+  } else {
+      Vector3::new(clip_position.x, clip_position.y, clip_position.z)
+  };
+
+  let ndc_vec4 = Vector4::new(ndc.x, ndc.y, ndc.z, 1.0);
+  let screen_position = multiply_matrix_vector4(&uniforms.viewport_matrix, &ndc_vec4);
+
+  let transformed_position = Vector3::new(
+      screen_position.x,
+      screen_position.y,
+      screen_position.z,
+  );
+
+  Vertex {
+    position: vertex.position,
+    normal: vertex.normal,
+    tex_coords: vertex.tex_coords,
+    color: vertex.color,
+    transformed_position,
+    transformed_normal: transform_normal(&vertex.normal, &uniforms.model_matrix),
+  }
+}
+
+pub fn ultra_mega_fragment_shader(fragment: &Fragment, uniforms: &Uniforms)->Vector3 {
+fragment_shader1(fragment, uniforms)+fragment_shader2(fragment, uniforms)+fragment_shader3(fragment, uniforms)
+}
