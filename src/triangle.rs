@@ -24,14 +24,24 @@ fn barycentric_coordinates(p_x: f32, p_y: f32, a: &Vertex, b: &Vertex, c: &Verte
     (w, v, u)
 }
 
-pub fn triangle(v1: &Vertex, v2: &Vertex, v3: &Vertex,light:&Light) -> Vec<Fragment> {
-    let mut fragments = Vec::new();
+pub fn triangle(
+    v1: &Vertex, v2: &Vertex, v3: &Vertex,
+    light: &Light,
+    uniforms: &crate::Uniforms, // Necesitarás los uniforms para el fragment shader
+    framebuffer: &mut crate::Framebuffer,
+    fragment_shader: fn(&Fragment, &crate::Uniforms, &Light) -> Vector3,
+) {
+    // let mut fragments = Vec::new();
     let base_color = Vector3::new(0.2,0.9,0.7);
 
-    let min_x = v1.transformed_position.x.min(v2.transformed_position.x).min(v3.transformed_position.x).floor() as i32;
-let max_x = v1.transformed_position.x.max(v2.transformed_position.x).max(v3.transformed_position.x).ceil() as i32;
-let min_y = v1.transformed_position.y.min(v2.transformed_position.y).min(v3.transformed_position.y).floor() as i32;
-let max_y = v1.transformed_position.y.max(v2.transformed_position.y).max(v3.transformed_position.y).ceil() as i32;
+    let min_x = (v1.transformed_position.x.min(v2.transformed_position.x).min(v3.transformed_position.x).floor() as i32)
+    .max(0);
+let max_x = (v1.transformed_position.x.max(v2.transformed_position.x).max(v3.transformed_position.x).ceil() as i32)
+    .min(framebuffer.width - 1);
+let min_y = (v1.transformed_position.y.min(v2.transformed_position.y).min(v3.transformed_position.y).floor() as i32)
+    .max(0);
+let max_y = (v1.transformed_position.y.max(v2.transformed_position.y).max(v3.transformed_position.y).ceil() as i32)
+    .min(framebuffer.height - 1);
 
 // Iterar sobre cada píxel en el cuadro delimitador
 for y in min_y..=max_y {
@@ -95,11 +105,21 @@ base_color.x * intensity,
 // Interpolar la profundidad usando las coordenadas baricéntricas
 let depth = w1 * v1.transformed_position.z + w2 * v2.transformed_position.z + w3 * v3.transformed_position.z;
 
+let fragment = Fragment::new(p_x, p_y, shaded_color, depth); // 'shaded_color' es temporal
+let final_color = fragment_shader(&fragment, uniforms, light);
+
+framebuffer.point(
+                    x, // Usa el 'x' e 'y' enteros del bucle
+                    y,
+                    fragment.depth,
+                    final_color,
+                );
+                
 // Agregar el fragmento al buffer de fragmentos
-fragments.push(Fragment::new(p_x, p_y, shaded_color, depth));
+// fragments.push(Fragment::new(p_x, p_y, shaded_color, depth));
     }
 }
 }
-fragments
+// fragments
 }
     

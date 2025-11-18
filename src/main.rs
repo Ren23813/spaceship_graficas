@@ -63,21 +63,27 @@ fn render(framebuffer: &mut Framebuffer,
     }
 
     // Rasterization Stage
-    let mut fragments = Vec::new();
+    // let mut fragments = Vec::new();
     for tri in &triangles {
-        fragments.extend(triangle(&tri[0], &tri[1], &tri[2], light));
+        triangle(
+            &tri[0], &tri[1], &tri[2], 
+            light, 
+            uniforms, 
+            framebuffer, 
+            fragment_shader
+        );    
     }
 
     // Fragment Processing Stage
-    for fragment in fragments {
-    let final_color = fragment_shader(&fragment, uniforms, light);          
-        framebuffer.point(
-            fragment.position.x as i32,
-            fragment.position.y as i32,
-            fragment.depth,
-            final_color,
-        );
-    }
+    // for fragment in fragments {
+    // let final_color = fragment_shader(&fragment, uniforms, light);          
+    //     framebuffer.point(
+    //         fragment.position.x as i32,
+    //         fragment.position.y as i32,
+    //         fragment.depth,
+    //         final_color,
+    //     );
+    // }
 }
 
 fn main() {
@@ -105,6 +111,7 @@ let mut light = Light::new_with_params(
     6.0,
     400.0,
 );
+
 
 struct Planet {
     orbit_radius: f32,
@@ -177,7 +184,6 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
         Vector3::new(PI, 0.0, 0.0),  // flip on Y axis
     );
 
-    let vertex_pipeline_global: Box<dyn Fn(&Vertex, &Uniforms) -> Vertex> = Box::new(ultra_mega_vertex_shader);
 
 
     while !window.window_should_close() {
@@ -216,14 +222,14 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
         };
 
         // render: pasamos vertex shader del planeta y fragment shader del planeta
-        // render(                                                  AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        //     &mut framebuffer,
-        //     &uniforms_planet,
-        //     &vertex_array,
-        //     &light,
-        //     planet.vertex.as_ref(),
-        //     planet.fragment,
-        // );
+        render(                                                  //AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+            &mut framebuffer,
+            &uniforms_planet,
+            &vertex_array,
+            &light,
+            planet.vertex.as_ref(),
+            planet.fragment,
+        );
     }
 
       let sun_pos = sun_base_pos; // Vector3::new(0.0, 0.0, 0.0);
@@ -241,14 +247,14 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
         time: elapsed,
     };
 
-    // render(                     AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-    //     &mut framebuffer,
-    //     &uniforms_sun,
-    //     &vertex_array,
-    //     &light,
-    //     sun_vertex.as_ref(),
-    //     sun_fragment,
-    // );
+    render(                     //AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        &mut framebuffer,
+        &uniforms_sun,
+        &vertex_array,
+        &light,
+        sun_vertex.as_ref(),
+        sun_fragment,
+    );
 
     // --------- render de la nave pegada a la cámara (igual que antes) ----------
     let mut forward = Vector3::new(
@@ -289,25 +295,32 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
         &uniforms_ship,
         &vertex_nave,
         &light,
-        &vertex_shader_nave, // si quieres que la nave use un shader distinto cámbialo
+        &vertex_shader_nave, 
         fragment_shader_nave,
     );
     
-//     {
-//     let mut dl = window.begin_drawing(&raylib_thread);
-//     dl.clear_background(Color::BLACK); // o tu color preferido
-//     dl.draw_text("Running... (debug overlay)", 10, 10, 20, Color::WHITE);
-//     // NOTA: esto va a pintar encima del framebuffer.texture si éste es dibujado,
-//     // pero te ayudará a confirmar si la ventana responde.
-// }
 
-    framebuffer.swap_buffers(&mut window, &raylib_thread); //AL TOQUE MI REY
-//     window.update
-//     window.update_texture(&mut screen_texture, &framebuffer.color_buffer);
-// let mut d = window.begin_drawing(&raylib_thread);
-// d.clear_background(Color::new(35, 6, 48, 255)); // alpha = 255
-// d.draw_texture(&screen_texture, 0, 0, Color::WHITE);
-// drop(d);
+
+let pixel_bytes: &[u8] = unsafe {
+
+    let raw_ptr = framebuffer.color_buffer.data();
+
+    let pixel_count = (framebuffer.width * framebuffer.height) as usize;
+    
+    let byte_count = pixel_count * std::mem::size_of::<Color>();
+
+    let u8_ptr = raw_ptr as *const u8;
+
+    std::slice::from_raw_parts(u8_ptr, byte_count)
+};
+
+// Ahora sí, actualizamos la textura con el slice de bytes
+screen_texture.update_texture(pixel_bytes);
+
+let mut d = window.begin_drawing(&raylib_thread);
+    d.clear_background(Color::BLACK); // o tu color de fondo
+    d.draw_texture(&screen_texture, 0, 0, Color::WHITE);
+
 
         thread::sleep(Duration::from_millis(16));
     }
