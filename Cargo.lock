@@ -388,6 +388,7 @@ name = "spaceship"
 version = "0.1.0"
 dependencies = [
  "noise",
+ "once_cell",
  "rand 0.9.2",
  "raylib",
  "tobj",

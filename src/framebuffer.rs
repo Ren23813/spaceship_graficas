@@ -70,10 +70,22 @@ impl Framebuffer {
     }
 
     pub fn swap_buffers(&self, d: &mut RaylibHandle, thread: &RaylibThread) {
-        if let Ok(texture) = d.load_texture_from_image(thread, &self.color_buffer) {
-            let mut d = d.begin_drawing(thread);
-            d.clear_background(self.background_color);
-            d.draw_texture(&texture, 0, 0, Color::WHITE);
+    match d.load_texture_from_image(thread, &self.color_buffer) {
+        Ok(texture) => {
+            // Si pudo crear la textura, dibujamos normalmente
+            let mut dl = d.begin_drawing(thread);
+            dl.clear_background(self.background_color);
+            dl.draw_texture(&texture, 0, 0, Color::WHITE);
+            // La textura creada se dropea aquí fuera de scope (ok para prototipo).
         }
-    } 
+        Err(e) => {
+            // Fallback: dibujamos mensaje de error (y fondo negro) para que no quede en blanco.
+            let mut dl = d.begin_drawing(thread);
+            dl.clear_background(Color::BLACK);
+            dl.draw_text(&format!("Failed to create texture: {:?}", e), 10, 10, 20, Color::WHITE);
+            dl.draw_text("Framebuffer texture load failed — check Image format / raylib context", 10, 40, 12, Color::WHITE);
+        }
+    }
+}
+
 }

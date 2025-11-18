@@ -4,8 +4,9 @@ use crate::{light::Light, vertex::Vertex};
 use crate::Uniforms;
 use crate::fragment::Fragment;
 use noise::{NoiseFn, Simplex, SuperSimplex};
+use once_cell::sync::Lazy;
 // use rand::random;
-
+static SIMPLEX: Lazy<SuperSimplex> = Lazy::new(|| SuperSimplex::new(42));
 
 fn project_world_to_screen(light_pos: Vector3, uniforms: &Uniforms) -> Vector2 {
     // light_pos -> vec4
@@ -273,22 +274,19 @@ pub fn ultra_mega_vertex_shader(vertex: &Vertex, uniforms: &Uniforms) ->Vertex{
 }
 
 pub fn ultra_mega_fragment_shader(fragment: &Fragment, uniforms: &Uniforms, light:&Light) -> Vector3 {
-    let simplex: SuperSimplex= SuperSimplex::new(42); 
+    // ya no creamos uno por fragmento
     let freq = 0.05;
-
     let x = fragment.position.x * freq;
     let y = fragment.position.y * freq;
     let t = uniforms.time * 0.8;
 
-    let raw = simplex.get([x as f64, y as f64, t as f64]);
+    // usamos la instancia global
+    let raw = SIMPLEX.get([x as f64, y as f64, t as f64]);
     let noise_val = ((raw + 1.0) * 0.5) as f32;
 
-    let color = 
-        // fragment_shader1(fragment, uniforms)+
-        Vector3::new(1.0, 0.0, 1.0)     //R-G-B
-        + fragment_shader2(fragment, uniforms,light)
-        + fragment_shader3(fragment, uniforms,light)
-        ;
+    let color = Vector3::new(1.0, 0.0, 1.0)
+        + fragment_shader2(fragment, uniforms, light)
+        + fragment_shader3(fragment, uniforms, light);
 
     let light_screen = project_world_to_screen(light.position, uniforms);
     let dx = fragment.position.x - light_screen.x;
@@ -296,17 +294,65 @@ pub fn ultra_mega_fragment_shader(fragment: &Fragment, uniforms: &Uniforms, ligh
     let dist = (dx * dx + dy * dy).sqrt();
 
     let local_light = 5.0;
-    // rango en píxeles: usa light.range
     let att = screen_attenuation(dist, light.range) * light.intensity * local_light;
-    
-    // sumar emisión (additiva) con el color de la luz
+
     let mut color2 = color + light.color * att;
 
-      color2 = Vector3::new(
+    color2 = Vector3::new(
         color2.x.min(1.0),
         color2.y.min(1.0),
         color2.z.min(1.0),
     );
 
     color2 * Vector3::new(noise_val, noise_val, noise_val)
+}
+
+
+pub fn vertex_shader_nave(vertex: &Vertex, uniforms: &Uniforms) -> Vertex {
+  let position_vec4 = Vector4::new(
+    vertex.position.x, //tan
+    vertex.position.y, //cos
+    vertex.position.z,
+    1.0
+  );
+
+  let world_position = multiply_matrix_vector4(&uniforms.model_matrix, &position_vec4);
+
+  let view_position = multiply_matrix_vector4(&uniforms.view_matrix, &world_position);
+
+  let clip_position = multiply_matrix_vector4(&uniforms.projection_matrix, &view_position);
+
+  let ndc = if clip_position.w != 0.0 {
+      Vector3::new(
+          clip_position.x / clip_position.w,
+          clip_position.y / clip_position.w,
+          clip_position.z / clip_position.w,
+      )
+  } else {
+      Vector3::new(clip_position.x, clip_position.y, clip_position.z)
+  };
+
+  let ndc_vec4 = Vector4::new(ndc.x, ndc.y, ndc.z, 1.0);
+  let screen_position = multiply_matrix_vector4(&uniforms.viewport_matrix, &ndc_vec4);
+
+  let transformed_position = Vector3::new(
+      screen_position.x,
+      screen_position.y,
+      screen_position.z,
+  );
+
+  Vertex {
+    position: vertex.position,
+    normal: vertex.normal,
+    tex_coords: vertex.tex_coords,
+    color: vertex.color,
+    transformed_position,
+    transformed_normal: transform_normal(&vertex.normal, &uniforms.model_matrix),
+  }
+}
+
+pub fn fragment_shader_nave(fragment: &Fragment, uniforms: &Uniforms, light:&Light) -> Vector3 {
+    let base_color = fragment.color;
+
+    base_color * 1.0
 }
