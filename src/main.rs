@@ -21,7 +21,7 @@ use std::f32::consts::PI;
 use matrix::{create_model_matrix,create_projection_matrix,create_viewport_matrix,multiply_matrix_vector4};
 use light::Light;
 use vertex::Vertex;
-use shaders::{fragment_shader1,fragment_shader2,fragment_shader3,vertex_shader,vertex_shader2,vertex_shader3};
+use shaders::{fragment_shader1,fragment_shader2,fragment_shader3,vertex_shader,vertex_shader2,vertex_shader3,ultra_mega_vertex_shader,ultra_mega_fragment_shader};
 use camera::Camera;
 
 use crate::{fragment::Fragment, matrix::create_view_matrix};
@@ -32,6 +32,7 @@ pub struct Uniforms{
     pub view_matrix: Matrix,
     pub projection_matrix: Matrix,
     pub viewport_matrix: Matrix,
+    pub time:f32
 }
 
 
@@ -40,7 +41,7 @@ fn render(framebuffer: &mut Framebuffer,
     vertex_array: &[Vertex], 
     light: &Light,
     vertex_shader: &dyn Fn(&Vertex, &Uniforms) -> Vertex,  
-    fragment_shader: fn(&Fragment, &Uniforms) -> Vector3,
+    fragment_shader: fn(&Fragment, &Uniforms, &Light) -> Vector3,
     ) {
     // Vertex Shader Stage
     let mut transformed_vertices = Vec::with_capacity(vertex_array.len());
@@ -69,7 +70,7 @@ fn render(framebuffer: &mut Framebuffer,
 
     // Fragment Processing Stage
     for fragment in fragments {
-    let final_color = fragment_shader(&fragment, uniforms);            
+    let final_color = fragment_shader(&fragment, uniforms, light);          
         framebuffer.point(
             fragment.position.x as i32,
             fragment.position.y as i32,
@@ -82,6 +83,7 @@ fn render(framebuffer: &mut Framebuffer,
 fn main() {
     let window_width = 1000;
     let window_height = 720;
+    let start_time = std::time::Instant::now();
 
     let (mut window, raylib_thread) = raylib::init()
         .size(window_width, window_height)
@@ -116,6 +118,7 @@ fn main() {
     );
 
     while !window.window_should_close() {
+        let elapsed = start_time.elapsed().as_secs_f32();
         camera.process_input(&window);
 
         // --- DETECTAR PULSACIONES (switch behavior) ---
@@ -126,6 +129,8 @@ fn main() {
             active_mode = 2;
         } else if window.is_key_pressed(KeyboardKey::KEY_THREE) {
             active_mode = 3;
+        } else if window.is_key_pressed(KeyboardKey::KEY_FOUR) {
+            active_mode = 4;
         }
 
         framebuffer.clear();
@@ -138,18 +143,19 @@ fn main() {
         // --- ELECCION DE SHADERS PARA EL OBJETO SUPERIOR SEGUN active_mode ---
         let (vertex_top, fragment_top): (
             Box<dyn Fn(&Vertex, &Uniforms) -> Vertex>,
-            fn(&Fragment, &Uniforms) -> Vector3
+            fn(&Fragment, &Uniforms,&Light) -> Vector3
         ) = match active_mode {
             1 => (Box::new(vertex_shader), fragment_shader1),
             2 => (Box::new(vertex_shader2), fragment_shader2),
             3 => (Box::new(vertex_shader3), fragment_shader3),
+            4 => (Box::new(ultra_mega_vertex_shader), ultra_mega_fragment_shader),
             _ => (Box::new(vertex_shader), fragment_shader1),
         };
 
         // Para la copia inferior (solo renderizamos si active_mode == 3)
         let (vertex_bottom, fragment_bottom): (
             Box<dyn Fn(&Vertex, &Uniforms) -> Vertex>,
-            fn(&Fragment, &Uniforms) -> Vector3
+            fn(&Fragment, &Uniforms,&Light) -> Vector3
         ) = (Box::new(vertex_shader), fragment_shader1); // valores por defecto si se llegara a usar
 
         // uniforms para la parte superior
@@ -158,6 +164,7 @@ fn main() {
             view_matrix,
             projection_matrix,
             viewport_matrix,
+            time:elapsed
         };
 
         // render superior (siempre)
@@ -171,10 +178,8 @@ fn main() {
                 view_matrix,
                 projection_matrix,
                 viewport_matrix,
+                time:elapsed
             };
-            // aquí usamos vertex_shader3 también para la copia inferior (si quieres que la copia sea
-            // el resultado de vertex_shader3). Si en su lugar quieres que la copia sea la geometría
-            // normal pero con otro fragment, cambia vertex_bottom por Box::new(vertex_shader).
             render(&mut framebuffer, &uniforms_bottom, &vertex_array, &light, vertex_top.as_ref(), fragment_top);
         }
 
