@@ -278,7 +278,7 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
         camera.eye.z + forward.z * forward_offset,
     );
 
-    let ship_rotation = Vector3::new(camera.pitch, camera.yaw, 0.0);
+    let ship_rotation = Vector3::new(camera.pitch, camera.yaw, PI);
     let ship_scale = 0.35_f32;
 
     let model_matrix_ship = create_model_matrix(ship_pos, ship_scale, ship_rotation);
