@@ -257,40 +257,66 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
     );
 
     // --------- render de la nave pegada a la cámara (igual que antes) ----------
-    let mut forward = Vector3::new(
-        camera.target.x - camera.eye.x,
-        camera.target.y - camera.eye.y,
-        camera.target.z - camera.eye.z,
-    );
-    let forward_len = (forward.x * forward.x + forward.y * forward.y + forward.z * forward.z).sqrt();
-    if forward_len > 1e-6 {
-        forward = Vector3::new(forward.x / forward_len, forward.y / forward_len, forward.z / forward_len);
-    } else {
-        forward = Vector3::new(0.0, 0.0, -1.0);
-    }
+    // let mut forward = Vector3::new(
+    //     camera.target.x - camera.eye.x,
+    //     camera.target.y - camera.eye.y,
+    //     camera.target.z - camera.eye.z,
+    // );
+    // let forward_len = (forward.x * forward.x + forward.y * forward.y + forward.z * forward.z).sqrt();
+    // if forward_len > 1e-6 {
+    //     forward = Vector3::new(forward.x / forward_len, forward.y / forward_len, forward.z / forward_len);
+    // } else {
+    //     forward = Vector3::new(0.0, 0.0, -1.0);
+    // }
 
     let forward_offset = 1.4_f32;
     let down_offset = -0.35_f32;
 
-    let ship_pos = Vector3::new(
-        camera.eye.x + forward.x * forward_offset,
-        camera.eye.y + forward.y * forward_offset + down_offset,
-        camera.eye.z + forward.z * forward_offset,
-    );
+    // let ship_pos = Vector3::new(
+    //     camera.eye.x + forward.x * forward_offset,
+    //     camera.eye.y + forward.y * forward_offset + down_offset,
+    //     camera.eye.z + forward.z * forward_offset,
+    // );
 
-    let ship_rotation = Vector3::new(camera.pitch, camera.yaw, PI);
+    // let ship_rotation = Vector3::new(camera.pitch, camera.yaw, PI);
     let ship_scale = 0.35_f32;
 
-    let model_matrix_ship = create_model_matrix(ship_pos, ship_scale, ship_rotation);
-    let uniforms_ship = Uniforms {
-        model_matrix: model_matrix_ship,
-        view_matrix,
-        projection_matrix,
-        viewport_matrix,
-        time: elapsed,
-    };
+    // let model_matrix_ship = create_model_matrix(ship_pos, ship_scale, ship_rotation);
+    // let uniforms_ship = Uniforms {
+    //     model_matrix: model_matrix_ship,
+    //     view_matrix,
+    //     projection_matrix,
+    //     viewport_matrix,
+    //     time: elapsed,
+    // };
 
-    render(                                      
+    // render(                                      
+    //     &mut framebuffer,
+    //     &uniforms_ship,
+    //     &vertex_nave,
+    //     &light,
+    //     &vertex_shader_nave, 
+    //     fragment_shader_nave,
+    // );
+let view_matrix = camera.get_view_matrix();
+let camera_matrix = view_matrix.inverted();
+let local_ship_translation = Vector3::new(0.0, down_offset, -forward_offset); // Z es negativo en view space    
+let local_ship_rotation = Vector3::new(0.0, 0.0, PI); // PI para voltear si el modelo está al revés.
+let local_transform_matrix = create_model_matrix(
+    local_ship_translation, 
+    ship_scale, // Ya definido como 0.35
+    local_ship_rotation
+);
+let model_matrix_ship = camera_matrix * local_transform_matrix;
+let uniforms_ship = Uniforms {
+    model_matrix: model_matrix_ship, // Usa la nueva matriz
+    view_matrix,
+    projection_matrix,
+    viewport_matrix,
+    time: elapsed,
+};
+
+ render(                                      
         &mut framebuffer,
         &uniforms_ship,
         &vertex_nave,
@@ -298,7 +324,6 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
         &vertex_shader_nave, 
         fragment_shader_nave,
     );
-    
 
 
 let pixel_bytes: &[u8] = unsafe {

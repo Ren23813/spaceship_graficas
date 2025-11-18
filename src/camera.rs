@@ -34,7 +34,7 @@ impl Camera {
         let pitch = if distance > 0.0 { (direction.y / distance).asin() } else { 0.0 };
         let yaw = direction.z.atan2(direction.x);
 
-        let min_distance = 2.0; 
+        let min_distance = 4.0; 
         let max_distance = 100.0;
 
         Camera {
