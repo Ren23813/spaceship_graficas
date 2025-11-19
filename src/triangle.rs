@@ -27,7 +27,7 @@ fn barycentric_coordinates(p_x: f32, p_y: f32, a: &Vertex, b: &Vertex, c: &Verte
 pub fn triangle(
     v1: &Vertex, v2: &Vertex, v3: &Vertex,
     light: &Light,
-    uniforms: &crate::Uniforms, // Necesitarás los uniforms para el fragment shader
+    uniforms: &crate::Uniforms, 
     framebuffer: &mut crate::Framebuffer,
     fragment_shader: fn(&Fragment, &crate::Uniforms, &Light) -> Vector3,
 ) {
@@ -43,10 +43,10 @@ let min_y = (v1.transformed_position.y.min(v2.transformed_position.y).min(v3.tra
 let max_y = (v1.transformed_position.y.max(v2.transformed_position.y).max(v3.transformed_position.y).ceil() as i32)
     .min(framebuffer.height - 1);
 
-// Iterar sobre cada píxel en el cuadro delimitador
+
 for y in min_y..=max_y {
     for x in min_x..=max_x {
-        let p_x = x as f32 + 0.5; // Muestra de centro del píxel
+        let p_x = x as f32 + 0.5; 
         let p_y = y as f32 + 0.5;
 
         // Calcular coordenadas baricéntricas
@@ -108,18 +108,15 @@ let depth = w1 * v1.transformed_position.z + w2 * v2.transformed_position.z + w3
 let fragment = Fragment::new(p_x, p_y, shaded_color, depth); // 'shaded_color' es temporal
 let final_color = fragment_shader(&fragment, uniforms, light);
 
-framebuffer.point(
-                    x, // Usa el 'x' e 'y' enteros del bucle
+framebuffer.point(          //Se escribe de una, porque si no, no da el rendimiento (se llena la memoria)
+                    x, 
                     y,
                     fragment.depth,
                     final_color,
                 );
                 
-// Agregar el fragmento al buffer de fragmentos
-// fragments.push(Fragment::new(p_x, p_y, shaded_color, depth));
     }
 }
 }
-// fragments
 }
     

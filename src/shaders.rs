@@ -3,7 +3,7 @@ use raylib::prelude::*;
 use crate::{light::Light, vertex::Vertex};
 use crate::Uniforms;
 use crate::fragment::Fragment;
-use noise::{NoiseFn, Simplex, SuperSimplex};
+use noise::{NoiseFn, SuperSimplex};
 use once_cell::sync::Lazy;
 // use rand::random;
 static SIMPLEX: Lazy<SuperSimplex> = Lazy::new(|| SuperSimplex::new(42));
@@ -29,7 +29,7 @@ fn project_world_to_screen(light_pos: Vector3, uniforms: &Uniforms) -> Vector2 {
 
 // attenuation simple tipo gaussian para glow en pantalla
 fn screen_attenuation(dist: f32, range: f32) -> f32 {
-    // clamp para evitar división por cero; la forma gaussian da un bonito fade
+    // clamp para evitar división por cero
     let r = if range <= 0.0 { 1.0 } else { range };
     (- (dist * dist) / (2.0 * r * r)).exp()
 }
@@ -274,7 +274,6 @@ pub fn ultra_mega_vertex_shader(vertex: &Vertex, uniforms: &Uniforms) ->Vertex{
 }
 
 pub fn ultra_mega_fragment_shader(fragment: &Fragment, uniforms: &Uniforms, light:&Light) -> Vector3 {
-    // ya no creamos uno por fragmento
     let freq = 0.05;
     let x = fragment.position.x * freq;
     let y = fragment.position.y * freq;
