@@ -1,14 +1,19 @@
-# Proyecto de nave :D
+# Proyecto de nave espacial :D
 
-Estrella hecha para el lab 5. Tiene luz como propiedad en el código, pero como está en el vacío (su luz emitida no impacta en algún otro objeto), no se aprecia :c. 
+Proyecto realizado en Rust para la ejemplificación de carga de un modelo 3D de blender, así como propiedades de shading (vertex y fragment). 
+Simula un sistema solar ficticio, con una estrella en el centro. Tiene una nave para navegar a través de este pequeño sistema.
 
-## Para correr `cargo run` dentro de esta carpeta, luego de clonar. 
+### Controles de la nave:
+- WASD para rotaciones.
+- Flechas del teclado para acercarse/alejarse, así como también desplazarse a la izquierda/derecha sin rotar.
 
-### Requisitos: Rust
+### Requisitos: Rust, cargo
+## Para correr el programa, ejecutar `cargo run` dentro de esta misma carpeta, luego de clonar. 
 
-### Muestra que funciona :D
-<video src="./estrella.mp4" controls width="100%"></video>
-(tal parece no sé cargar un video en markdown... Está en el .mp4 al mismo nivel que este readme :D)
-# Para alternar los distintos planetas, pulsar 1,2,3,4 en el teclado :). 
+### Video funcionando :D
+<video src="./sistema.mp4" controls width="100%"></video>
+(tal parece no sé cargar un video en markdown x3... Está en el .mp4 al mismo nivel que este readme :D)
 
-P.D: La estrella se recicla del modelo del cuarto planeta del lab anterior (me gustó mucho la forma :D). Al ejecutar, presionar el número 4 (dentro del teclado normal, no numpad) para ver la estrella.  
+P.D.: antes se tenía una mejor nave... pero por cuestiones de tamaño (tenía 8M de datos), se tuvo que usar la "improvisada" que está ahora. 
+
+Realizado con ayuda de ChatGPT (OpenAI, 2025) y Gemini (Google,2025).
