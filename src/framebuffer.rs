@@ -88,4 +88,8 @@ impl Framebuffer {
     }
 }
 
+pub fn clear_depth(&mut self) {
+        self.depth_buffer.fill(f32::INFINITY);
+    }
 }
+

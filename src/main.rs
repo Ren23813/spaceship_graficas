@@ -23,6 +23,7 @@ use light::Light;
 use vertex::Vertex;
 use shaders::{fragment_shader1,fragment_shader2,fragment_shader3,vertex_shader,vertex_shader2,vertex_shader3,ultra_mega_vertex_shader,ultra_mega_fragment_shader};
 use camera::Camera;
+use rand::Rng;
 
 use crate::{fragment::Fragment, matrix::create_view_matrix, shaders::{fragment_shader_nave, vertex_shader_nave}};
 
@@ -84,6 +85,27 @@ fn render(framebuffer: &mut Framebuffer,
     //         final_color,
     //     );
     // }
+}
+
+fn generate_stars(count: usize) -> Vec<Vector3> {
+    let mut rng = rand::thread_rng();
+    let mut stars = Vec::with_capacity(count);
+
+    for _ in 0..count {
+        // Generamos un punto aleatorio en una esfera unitaria
+        let theta = rng.gen_range(0.0..2.0 * PI);
+        let phi = rng.gen_range(0.0..PI);
+        
+        let x = phi.sin() * theta.cos();
+        let y = phi.sin() * theta.sin();
+        let z = phi.cos();
+
+        // Lo guardamos. No necesitamos escalarlo a "lejos" porque
+        // manipularemos la proyección, pero para visualización mental,
+        // imagínalas en una esfera de radio 1.
+        stars.push(Vector3::new(x, y, z));
+    }
+    stars
 }
 
 fn main() {
@@ -159,8 +181,7 @@ let planets: Vec<Planet> = vec![
 
 let sun_scale = 2.5_f32;
 let sun_vertex: Box<dyn Fn(&Vertex, &Uniforms) -> Vertex> = Box::new(ultra_mega_vertex_shader);
-let sun_fragment: fn(&Fragment, &Uniforms, &Light) -> Vector3 = ultra_mega_fragment_shader;
-// posición base del sol (puedes dejar en el origen)
+let sun_fragment= ultra_mega_fragment_shader;
 let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
 
 
@@ -184,17 +205,62 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
         Vector3::new(PI, 0.0, 0.0),  // flip on Y axis
     );
 
-
+let stars = generate_stars(2000);
 
     while !window.window_should_close() {
         let elapsed = start_time.elapsed().as_secs_f32();
         camera.process_input(&window);
 
         framebuffer.clear();
+        let front = Vector3::new(
+    camera.target.x - camera.eye.x,
+    camera.target.y - camera.eye.y,
+    camera.target.z - camera.eye.z,
+).normalized();
+
+//    Creamos una vista desde (0,0,0) mirando hacia esa dirección.
+let view_rotate_only = create_view_matrix(
+    Vector3::zero(), // Ojo en el origen
+    front,           // Mirando hacia donde mira la cámara real
+    camera.up
+);
+        let projection_matrix = create_projection_matrix(PI / 3.0, window_width as f32 / window_height as f32, 0.1, 100.0);
+
+// 2. Dibujar cada estrella
+for star in &stars { // 'stars' es el Vec que creaste al inicio
+    // A. Transformar (Model es identidad, así que pasamos directo a View)
+    //    Convertimos el Vector3 a Vector4 para multiplicar
+    let vertex = Vector4::new(star.x, star.y, star.z, 1.0);
+
+    // B. Aplicar Vista (Solo rotación)
+    let view_pos = multiply_matrix_vector4(&view_rotate_only, &vertex);
+
+    // C. Aplicar Proyección
+    let proj_pos = multiply_matrix_vector4(&projection_matrix, &view_pos);
+
+    // D. División de Perspectiva (Perspective Divide)
+    //    Si w <= 0, la estrella está detrás de la cámara, no la dibujamos
+    if proj_pos.w > 0.0 {
+        let ndc_x = proj_pos.x / proj_pos.w;
+        let ndc_y = proj_pos.y / proj_pos.w;
+
+        // E. Viewport (Pantalla)
+        //    Solo dibujamos si está dentro de los límites normalizados (-1 a 1)
+        if ndc_x >= -1.0 && ndc_x <= 1.0 && ndc_y >= -1.0 && ndc_y <= 1.0 {
+            let screen_x = (ndc_x + 1.0) * 0.5 * window_width as f32;
+            let screen_y = (1.0 - ndc_y) * 0.5 * window_height as f32; // Invertimos Y
+
+            // F. Dibujar punto (Color blanco o grisáceo)
+            //    IMPORTANTE: Dibujamos directo al buffer de color, IGNORANDO el depth buffer.
+            //    Así las estrellas siempre quedan "al fondo".
+            framebuffer.set_current_color(Color::WHITE);
+            framebuffer.set_pixel(screen_x as i32, screen_y as i32);
+        }
+    }
+}
         framebuffer.set_current_color(Color::new(200, 200, 255, 255));
 
         let view_matrix = camera.get_view_matrix();
-        let projection_matrix = create_projection_matrix(PI / 3.0, window_width as f32 / window_height as f32, 0.1, 100.0);
         let viewport_matrix = create_viewport_matrix(0.0, 0.0, window_width as f32, window_height as f32);
 
      
@@ -207,6 +273,17 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
         // Traslación orbital (world position)
         let planet_pos = Vector3::new(px, py, pz);
 
+        let dist_to_planet = (
+            (camera.eye.x - planet_pos.x).powi(2) + 
+            (camera.eye.y - planet_pos.y).powi(2) + 
+            (camera.eye.z - planet_pos.z).powi(2)
+        ).sqrt();
+
+        let collision_radius = planet.scale * 1.6;
+        if dist_to_planet < collision_radius { 
+            // camera.distance += 10.0;
+            //en teoría esto lo resuelve, pero no siempre funciona la empujada para atras
+        }
         // Rotación propia (spin) aplicada en Y
         let self_angle = elapsed * planet.spin_speed;
         let planet_rot = Vector3::new(0.0, self_angle, 0.0);
@@ -256,93 +333,52 @@ let sun_base_pos = Vector3::new(0.0, 0.0, 0.0);
         sun_fragment,
     );
 
-    // --------- render de la nave pegada a la cámara (igual que antes) ----------
-    // let mut forward = Vector3::new(
-    //     camera.target.x - camera.eye.x,
-    //     camera.target.y - camera.eye.y,
-    //     camera.target.z - camera.eye.z,
-    // );
-    // let forward_len = (forward.x * forward.x + forward.y * forward.y + forward.z * forward.z).sqrt();
-    // if forward_len > 1e-6 {
-    //     forward = Vector3::new(forward.x / forward_len, forward.y / forward_len, forward.z / forward_len);
-    // } else {
-    //     forward = Vector3::new(0.0, 0.0, -1.0);
-    // }
+    let ship_scale = 0.001;
+    framebuffer.clear_depth();
 
-    let forward_offset = 1.4_f32;
-    let down_offset = -0.35_f32;
+    let ship_pos_in_screen = Vector3::new(
+            0.0,    // Centrada horizontalmente
+            2.0,  // Un poco abajo (down_offset)
+            -7.0    // Hacia adelante (forward_offset) para que no te corte la cara
+        );
+    let ship_rotation_fixed = Vector3::new(0.0, PI, 0.0);
+    let model_matrix_ship = create_model_matrix(ship_pos_in_screen, ship_scale, ship_rotation_fixed);
+    let static_view_matrix = Matrix::identity();
 
-    // let ship_pos = Vector3::new(
-    //     camera.eye.x + forward.x * forward_offset,
-    //     camera.eye.y + forward.y * forward_offset + down_offset,
-    //     camera.eye.z + forward.z * forward_offset,
-    // );
+    let uniforms_ship = Uniforms {
+        model_matrix: model_matrix_ship,
+        view_matrix: static_view_matrix, // <--- AQUÍ ESTÁ LA MAGIA
+        projection_matrix,               // La proyección sí debe ser la misma (perspectiva)
+        viewport_matrix,
+        time: elapsed,
+    };
 
-    // let ship_rotation = Vector3::new(camera.pitch, camera.yaw, PI);
-    let ship_scale = 0.35_f32;
-
-    // let model_matrix_ship = create_model_matrix(ship_pos, ship_scale, ship_rotation);
-    // let uniforms_ship = Uniforms {
-    //     model_matrix: model_matrix_ship,
-    //     view_matrix,
-    //     projection_matrix,
-    //     viewport_matrix,
-    //     time: elapsed,
-    // };
-
-    // render(                                      
-    //     &mut framebuffer,
-    //     &uniforms_ship,
-    //     &vertex_nave,
-    //     &light,
-    //     &vertex_shader_nave, 
-    //     fragment_shader_nave,
-    // );
-let view_matrix = camera.get_view_matrix();
-let camera_matrix = view_matrix.inverted();
-let local_ship_translation = Vector3::new(0.0, down_offset, -forward_offset); // Z es negativo en view space    
-let local_ship_rotation = Vector3::new(0.0, 0.0, PI); // PI para voltear si el modelo está al revés.
-let local_transform_matrix = create_model_matrix(
-    local_ship_translation, 
-    ship_scale, // Ya definido como 0.35
-    local_ship_rotation
-);
-let model_matrix_ship = camera_matrix * local_transform_matrix;
-let uniforms_ship = Uniforms {
-    model_matrix: model_matrix_ship, // Usa la nueva matriz
-    view_matrix,
-    projection_matrix,
-    viewport_matrix,
-    time: elapsed,
-};
-
- render(                                      
+    render(
         &mut framebuffer,
         &uniforms_ship,
         &vertex_nave,
         &light,
-        &vertex_shader_nave, 
+        &vertex_shader_nave,  // Usa tus shaders de nave aquí
         fragment_shader_nave,
     );
 
 
-let pixel_bytes: &[u8] = unsafe {
+    let pixel_bytes: &[u8] = unsafe {
 
-    let raw_ptr = framebuffer.color_buffer.data();
+        let raw_ptr = framebuffer.color_buffer.data();
 
-    let pixel_count = (framebuffer.width * framebuffer.height) as usize;
-    
-    let byte_count = pixel_count * std::mem::size_of::<Color>();
+        let pixel_count = (framebuffer.width * framebuffer.height) as usize;
+        
+        let byte_count = pixel_count * std::mem::size_of::<Color>();
 
-    let u8_ptr = raw_ptr as *const u8;
+        let u8_ptr = raw_ptr as *const u8;
 
-    std::slice::from_raw_parts(u8_ptr, byte_count)
-};
+        std::slice::from_raw_parts(u8_ptr, byte_count)
+    };
 
-// Ahora sí, actualizamos la textura con el slice de bytes
-screen_texture.update_texture(pixel_bytes);
+    screen_texture.update_texture(pixel_bytes);
 
-let mut d = window.begin_drawing(&raylib_thread);
+    let mut d = window.begin_drawing(&raylib_thread);
     d.clear_background(Color::BLACK); // o tu color de fondo
     d.draw_texture(&screen_texture, 0, 0, Color::WHITE);
 
